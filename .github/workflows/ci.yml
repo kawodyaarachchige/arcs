@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,train]"
+
+      - name: Protobuf stubs are up to date
+        run: |
+          chmod +x scripts/gen_proto.sh
+          ./scripts/gen_proto.sh
+          git diff --exit-code -- arcs-rl/src/arcs
+
+      - name: Ruff check
+        run: ruff check arcs-rl services/policy-service tests/integration
+
+      - name: Ruff format
+        run: ruff format --check arcs-rl services/policy-service tests/integration
+
+      - name: Mypy
+        run: mypy arcs-rl/src/arcs_rl
+
+      - name: Pytest (line coverage ≥85%)
+        run: pytest arcs-rl/tests tests/integration --cov=arcs_rl --cov-fail-under=85 -q
+
+      - name: Docker Compose validate
+        run: docker compose -f infra/docker/docker-compose.yml config
+
+      - name: Docker build (dev image)
+        run: docker build -f infra/docker/Dockerfile.dev .
+
+      - name: Docker build (practice microservices)
+        run: |
+          docker build -f services/echo-service/Dockerfile -t arcs-echo:ci .
+          docker build -f services/cpu-service/Dockerfile -t arcs-cpu:ci .
+          docker build -f services/aggregator-service/Dockerfile -t arcs-aggregator:ci .
+          docker build -f services/policy-service/Dockerfile -t arcs-policy:ci .
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+
+      - name: Helm template (lint render)
+        run: helm template arcs-ci ./infra/helm/arcs >/dev/null

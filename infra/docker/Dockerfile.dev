@@ -1,0 +1,16 @@
+# Builds a tiny Linux image with this Python package installed (used in CI and smoke checks).
+FROM python:3.13-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+COPY pyproject.toml README.md LICENSE ./
+COPY arcs-rl arcs-rl
+COPY configs configs
+
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -e .
+
+CMD ["python", "-c", "import arcs_rl; print(arcs_rl.__version__)"]

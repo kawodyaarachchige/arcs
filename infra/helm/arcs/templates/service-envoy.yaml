@@ -1,0 +1,20 @@
+{{- if .Values.envoy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arcs.fullname" . }}-envoy
+  labels:
+    {{- include "arcs.envoyLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 10000
+      targetPort: http
+      name: http
+    - port: 9901
+      targetPort: admin
+      name: admin
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: arcs-envoy
+{{- end }}

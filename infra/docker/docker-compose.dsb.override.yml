@@ -1,0 +1,99 @@
+# Merged after upstream socialNetwork/docker-compose.yml: every DSB service joins the ARCS network.
+# The network name arcs_arcs matches Docker Compose project "arcs" + network key "arcs" from infra/docker/docker-compose.yml.
+networks:
+  arcs:
+    external: true
+    name: arcs_arcs
+
+services:
+  compose-post-service:
+    networks:
+      - arcs
+  home-timeline-redis:
+    networks:
+      - arcs
+  home-timeline-service:
+    networks:
+      - arcs
+  jaeger-agent:
+    networks:
+      - arcs
+  media-frontend:
+    networks:
+      - arcs
+  media-memcached:
+    networks:
+      - arcs
+  media-mongodb:
+    networks:
+      - arcs
+  media-service:
+    networks:
+      - arcs
+  nginx-thrift:
+    networks:
+      - arcs
+  post-storage-memcached:
+    networks:
+      - arcs
+  post-storage-mongodb:
+    networks:
+      - arcs
+  post-storage-service:
+    networks:
+      - arcs
+  social-graph-mongodb:
+    networks:
+      - arcs
+  social-graph-redis:
+    networks:
+      - arcs
+  social-graph-service:
+    networks:
+      - arcs
+  text-service:
+    networks:
+      - arcs
+  unique-id-service:
+    networks:
+      - arcs
+  url-shorten-memcached:
+    networks:
+      - arcs
+  url-shorten-mongodb:
+    networks:
+      - arcs
+  url-shorten-service:
+    networks:
+      - arcs
+  user-memcached:
+    networks:
+      - arcs
+  user-mention-service:
+    networks:
+      - arcs
+  user-mongodb:
+    networks:
+      - arcs
+  user-service:
+    networks:
+      - arcs
+  user-timeline-mongodb:
+    networks:
+      - arcs
+  user-timeline-redis:
+    networks:
+      - arcs
+  user-timeline-service:
+    networks:
+      - arcs
+
+  # When you merge this file for DeathStarBench, Envoy reads envoy-dsb.yaml and forwards to nginx-thrift.
+  envoy:
+    volumes:
+      - ../envoy/envoy-dsb.yaml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      policy-service:
+        condition: service_healthy
+      nginx-thrift:
+        condition: service_started

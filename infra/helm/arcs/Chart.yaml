@@ -1,0 +1,6 @@
+apiVersion: v2
+name: arcs
+description: ARCS practice microservice testbed (echo, CPU, aggregator, Toxiproxy).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,42 @@
+// gRPC API for the ARCS policy service (retry / backoff / timeout decisions).
+// HTTP JSON mirrors these fields for simpler callers and Envoy ext_authz.
+
+syntax = "proto3";
+
+package arcs.policy.v1;
+
+option go_package = "github.com/arcs/arcs/policy/v1;policyv1";
+
+// Policy decisions: suggested triple plus route health, optional 12-D observation for ML inference.
+service Policy {
+  // One decision: return the safeguarded retry/backoff/timeout triple.
+  rpc Decide(DecideRequest) returns (DecideResponse);
+}
+
+// Numbers the caller thinks we should try before safety rules adjust them.
+message SuggestedAction {
+  int32 retry = 1;
+  double backoff_multiplier = 2;
+  double timeout_ms = 3;
+}
+
+message DecideRequest {
+  // Stable id for this path or dependency (used for per-route limits).
+  string route = 1;
+  // Recent error fraction in [0, 1].
+  double error_rate = 2;
+  // If inference is off, this must be set. If inference is on, omit when sending a full observation.
+  optional SuggestedAction suggested = 3;
+  // Optional id for logs (also read from gRPC metadata: traceparent, x-request-id).
+  string trace_id = 4;
+  // Normalized 12-D state when the neural net should pick the suggested triple. Empty means "caller supplies suggested".
+  repeated float observation = 5;
+}
+
+message DecideResponse {
+  int32 retry = 1;
+  double backoff_multiplier = 2;
+  double timeout_ms = 3;
+  repeated string override_reasons = 4;
+  bool frozen_active = 5;
+}

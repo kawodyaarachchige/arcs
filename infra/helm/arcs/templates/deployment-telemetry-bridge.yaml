@@ -1,0 +1,63 @@
+{{- if .Values.telemetryBridge.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arcs.fullname" . }}-telemetry-bridge
+  labels:
+    {{- include "arcs.telemetryBridgeLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.telemetryBridge.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: arcs-telemetry-bridge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- include "arcs.telemetryBridgeLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: telemetry-bridge
+          image: "{{ .Values.telemetryBridge.image.repository }}:{{ .Values.telemetryBridge.image.tag }}"
+          imagePullPolicy: {{ .Values.telemetryBridge.image.pullPolicy }}
+          ports:
+            - containerPort: 8085
+              name: http
+          env:
+            - name: TELEMETRY_BRIDGE_ARCS_CONFIG
+              value: /config/arcs.default.yaml
+            - name: PROMETHEUS_BASE_URL
+              value: http://{{ include "arcs.fullname" . }}-prometheus:9090
+            - name: LOG_LEVEL
+              value: INFO
+            - name: KAFKA_TOPIC_ARCS_TELEMETRY
+              value: arcs.telemetry.v1
+            {{- if .Values.kafka.enabled }}
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: '{{ include "arcs.fullname" . }}-kafka:9092'
+            {{- end }}
+          volumeMounts:
+            - name: arcs-config
+              mountPath: /config/arcs.default.yaml
+              subPath: arcs.default.yaml
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.telemetryBridge.resources | nindent 12 }}
+      volumes:
+        - name: arcs-config
+          configMap:
+            name: {{ include "arcs.fullname" . }}-arcs-config
+{{- end }}

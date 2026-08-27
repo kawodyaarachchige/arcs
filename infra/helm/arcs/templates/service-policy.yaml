@@ -1,0 +1,20 @@
+{{- if .Values.policy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arcs.fullname" . }}-policy
+  labels:
+    {{- include "arcs.policyLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      name: http
+    - port: 50051
+      targetPort: grpc
+      name: grpc
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: arcs-policy-service
+{{- end }}

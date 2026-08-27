@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.9
+    hooks:
+      - id: ruff
+        files: ^(arcs-rl|services/policy-service)/
+      - id: ruff-format
+        files: ^(arcs-rl|services/policy-service)/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - numpy>=1.26.0
+          - pyyaml>=6.0.1
+          - gymnasium>=0.29.1
+          - types-PyYAML>=6.0.12.20240917
+        args: [--config-file=pyproject.toml]
+        files: ^arcs-rl/src/arcs_rl/
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        args: [--unsafe]
+        files: ^configs/.*\.ya?ml$

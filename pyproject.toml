@@ -1,0 +1,145 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "arcs-rl"
+version = "0.1.0"
+description = "ARCS: learning-based retry and timeout tuning for microservice-style systems."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "W.A. Tharushi Kawodya" }]
+dependencies = [
+  "numpy>=1.26.0",
+  "pyyaml>=6.0.1",
+  "gymnasium>=0.29.1",
+  "grpcio>=1.80.0",
+  "protobuf>=5.26.0",
+  "prometheus-client>=0.21.0",
+]
+
+[project.scripts]
+arcs-train = "arcs_rl.cli:main_train"
+arcs-export = "arcs_rl.cli:main_export"
+arcs-validate-config = "arcs_rl.cli:main_validate_config"
+arcs-eval = "arcs_rl.cli:main_eval"
+arcs-benchmark = "arcs_rl.cli:main_benchmark"
+
+[project.optional-dependencies]
+train = [
+  "stable-baselines3>=2.3.0",
+  "torch>=2.1.0",
+]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "coverage[toml]>=7.6",
+  "hypothesis>=6.0",
+  "ruff>=0.8.0",
+  "mypy>=1.13.0",
+  "pre-commit>=4.0.0",
+  "types-PyYAML>=6.0.12",
+  "stable-baselines3>=2.3.0",
+  "torch>=2.1.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic>=2.10.0",
+  "httpx>=0.28.0",
+  "grpcio-tools>=1.80.0",
+]
+onnx = [
+  "onnx>=1.16.0",
+]
+dashboard = [
+  "streamlit>=1.40.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["arcs-rl/src/arcs_rl", "arcs-rl/src/arcs"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/arcs-rl",
+  "/configs",
+  "/README.md",
+  "/LICENSE",
+]
+
+[tool.ruff]
+target-version = "py311"
+src = ["arcs-rl/src", "arcs-rl/tests", "services/policy-service", "services/telemetry-bridge", "benchmarks", "dashboards", "scripts"]
+line-length = 100
+extend-exclude = ["arcs-rl/src/arcs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+# Parametrize tables with lambdas are clearer on one line than wrapped.
+[tool.ruff.lint.per-file-ignores]
+"arcs-rl/tests/test_config_validation_branches.py" = ["E501"]
+"arcs-rl/tests/test_config_missing_subkeys.py" = ["E501"]
+"scripts/gen_dsb_network_override.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+strict = false
+mypy_path = "arcs-rl/src"
+packages = ["arcs_rl"]
+
+# Training/export deps are optional ([train] extra)
+[[tool.mypy.overrides]]
+module = "torch"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "torch.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "stable_baselines3"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "stable_baselines3.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "onnx"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "prometheus_client"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "prometheus_client.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["arcs-rl/src", "services/policy-service", "."]
+# arcs.policy.v1 stubs live under arcs-rl/src/arcs (same pythonpath root as arcs_rl).
+testpaths = ["arcs-rl/tests", "tests/integration"]
+markers = [
+  "integration: tests that start Docker Compose (slow; optional in CI)",
+]
+
+[tool.coverage.run]
+# Line coverage matches the common "≥85% coverage" bar; branch coverage is stricter and optional.
+branch = false
+source = ["arcs_rl"]
+omit = [
+  "*/arcs/policy/*",
+  "*/arcs/__init__.py",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_empty = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "\\.\\.\\.",
+]

@@ -1,0 +1,73 @@
+{{- if .Values.policy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arcs.fullname" . }}-policy
+  labels:
+    {{- include "arcs.policyLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.policy.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: arcs-policy-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- include "arcs.policyLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: policy
+          image: "{{ .Values.policy.image.repository }}:{{ .Values.policy.image.tag }}"
+          imagePullPolicy: {{ .Values.policy.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 50051
+              name: grpc
+          env:
+            - name: ARCS_CONFIG
+              value: /config/arcs.default.yaml
+            - name: LOG_LEVEL
+              value: INFO
+            {{- if .Values.telemetryBridge.enabled }}
+            - name: ARCS_OBSERVATION_BRIDGE_ENABLED
+              value: "1"
+            - name: ARCS_OBSERVATION_BRIDGE_URL
+              value: http://{{ include "arcs.fullname" . }}-telemetry-bridge:8085
+            {{- end }}
+          volumeMounts:
+            - name: arcs-config
+              mountPath: /config/arcs.default.yaml
+              subPath: arcs.default.yaml
+              readOnly: true
+            {{- if .Values.policy.tlsSecretName }}
+            - name: policy-tls
+              mountPath: /etc/arcs/tls
+              readOnly: true
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.policy.resources | nindent 12 }}
+      volumes:
+        - name: arcs-config
+          configMap:
+            name: {{ include "arcs.fullname" . }}-arcs-config
+        {{- if .Values.policy.tlsSecretName }}
+        - name: policy-tls
+          secret:
+            secretName: {{ .Values.policy.tlsSecretName }}
+        {{- end }}
+{{- end }}

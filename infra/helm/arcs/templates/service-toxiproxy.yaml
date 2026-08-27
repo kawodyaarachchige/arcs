@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arcs.fullname" . }}-toxiproxy
+  labels:
+    {{- include "arcs.toxiproxyLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8474
+      targetPort: api
+      name: api
+    - port: 8666
+      targetPort: echo-proxy
+      name: echo-proxy
+    - port: 8667
+      targetPort: cpu-proxy
+      name: cpu-proxy
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: arcs-toxiproxy

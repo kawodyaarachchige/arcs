@@ -1,0 +1,17 @@
+{{- if .Values.kafka.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arcs.fullname" . }}-kafka
+  labels:
+    {{- include "arcs.kafkaLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9092
+      targetPort: client
+      name: client
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: arcs-kafka
+{{- end }}

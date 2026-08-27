@@ -1,0 +1,68 @@
+# Settings for the benchmark runner (load tests + Prometheus snapshots).
+# Paths below are relative to the repository root when you run from there.
+
+# Where to write timestamped run folders (manifest + metrics CSV + k6 logs).
+output_dir: benchmarks/runs
+
+# Prometheus UI/API (compose maps host 9090 -> prometheus).
+prometheus:
+  base_url: "http://127.0.0.1:9090"
+
+# Policy config files for documentation and manifest only; swap ARCS_CONFIG and restart policy-service.
+policy_configs:
+  static: configs/benchmark-static.yaml
+  adaptive: configs/benchmark-adaptive.yaml
+
+# HTTP entry through Envoy (matches simulation.compose_host_ports.envoy in arcs YAML).
+load:
+  # Full URL k6 will request (GET). Path should exist on echo behind Envoy.
+  target_url: "http://127.0.0.1:10000/health/live"
+  # k6 executor: "ramping-vus" (uses stages below) or "constant-arrival-rate" (uses rate + duration_seconds).
+  executor: ramping-vus
+  # How long to let traffic settle before recording (seconds).
+  warmup_seconds: 5
+  # Total test duration after warmup (seconds).
+  duration_seconds: 30
+  # For ramping-vus: list of { duration, target } stages. Target is virtual users.
+  stages:
+    - duration: 10s
+      target: 5
+    - duration: 20s
+      target: 20
+  # For constant-arrival-rate: requests per time unit (used only if executor is constant-arrival-rate).
+  rate: 100
+  time_unit: 1s
+  pre_allocated_vus: 50
+  max_vus: 100
+  # Sent on every request so the policy can label the route.
+  route_header: "/bench"
+  # Optional 0–1 value for x-arcs-error-rate (string in header).
+  error_rate: 0.05
+  # Twelve comma-separated floats for x-arcs-obs when testing the adaptive path (synthetic but repeatable).
+  observation:
+    - 0.5
+    - 0.5
+    - 0.1
+    - 0.3
+    - 0.4
+    - 0.05
+    - 0.2
+    - 1.0
+    - 0.2
+    - 0.1
+    - 0.0
+    - 0.0
+
+# Instant queries run once at the end of each arm (after a short settle time).
+prometheus_queries:
+  - name: policy_decision_latency_p99_5m
+    expr: 'arcs:policy:decision_latency_p99_5m'
+  - name: policy_decisions_per_second
+    expr: 'arcs:policy:decisions_per_second'
+  - name: policy_overrides_per_second
+    expr: 'arcs:policy:overrides_per_second'
+  - name: http_p99_10m
+    expr: 'arcs:http_server_duration:p99_10m'
+
+# Seconds to sleep after k6 exits so recording rules catch up before we query.
+post_load_settle_seconds: 10

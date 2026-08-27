@@ -1,0 +1,57 @@
+# Optional log stack: Elasticsearch + Kibana + Filebeat for JSON audit trails.
+#
+# Expect roughly 1.5–2 GiB free RAM (Elasticsearch alone wants ~512m heap + overhead).
+# Start together with the main stack:
+#   docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.logging.yml up -d
+#
+# Kibana: http://localhost:5601  Elasticsearch: http://localhost:9200
+#
+# Filebeat reads Docker’s JSON log files under /var/lib/docker/containers. That path exists on
+# typical Linux engines. Docker Desktop on macOS may not expose it the same way—if logs do not
+# appear, run a log shipper on the host or switch to a cloud log provider.
+
+name: arcs
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    networks: [arcs]
+    mem_limit: 1024m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [arcs]
+    mem_limit: 512m
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.15.3
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false", "-c", "/usr/share/filebeat/filebeat.yml"]
+    volumes:
+      - ../elk/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [arcs]
+    mem_limit: 256m

@@ -1,0 +1,11 @@
+{{- if .Values.envoy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arcs.fullname" . }}-envoy
+  labels:
+    {{- include "arcs.envoyLabels" . | nindent 4 }}
+data:
+  envoy.yaml: |
+{{ tpl (.Files.Get "files/envoy.yaml") . | nindent 4 }}
+{{- end }}

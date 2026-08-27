@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arcs.fullname" . }}-cpu
+  labels:
+    {{- include "arcs.cpuLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.cpu.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: arcs-cpu-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- include "arcs.cpuLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: cpu
+          image: "{{ .Values.cpu.image.repository }}:{{ .Values.cpu.image.tag }}"
+          imagePullPolicy: {{ .Values.cpu.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: arcs-cpu-service
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ include "arcs.fullname" . }}-otel-collector:4317"
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.cpu.resources | nindent 12 }}

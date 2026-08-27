@@ -1,0 +1,106 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+          "expr": "arcs:policy:decision_latency_p99_5m",
+          "legendFormat": "P99 decision time",
+          "refId": "A"
+        }
+      ],
+      "title": "Policy decision latency P99 (5m window, seconds)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+          "expr": "arcs:policy:decisions_per_second",
+          "legendFormat": "decisions/s",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+          "expr": "arcs:policy:overrides_per_second",
+          "legendFormat": "safeguard overrides/s",
+          "refId": "B"
+        }
+      ],
+      "title": "Policy throughput and safeguard overrides",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "ms" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+          "expr": "arcs:http_server_duration:p99_10m",
+          "legendFormat": "HTTP p99 (OTel)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "arcs-prometheus" },
+          "expr": "arcs:http_server_duration:p50_10m",
+          "legendFormat": "HTTP p50 (OTel)",
+          "refId": "B"
+        }
+      ],
+      "title": "App HTTP latency (from OpenTelemetry, milliseconds)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["arcs"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ARCS Overview",
+  "uid": "arcs-overview",
+  "version": 1,
+  "weekStart": ""
+}

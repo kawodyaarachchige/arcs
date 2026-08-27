@@ -1,0 +1,48 @@
+# Copy of infra/prometheus/recording_rules.yml for the Helm chart package.
+# Extra named metrics built from raw scraped data (helps dashboards stay simple).
+# Some lines only produce numbers after the apps have sent enough traffic — that’s OK.
+
+groups:
+  - name: arcs_availability
+    interval: 30s
+    rules:
+      - record: arcs:otel_collector:up
+        expr: up{job="otel-collector-app-metrics"}
+
+  - name: arcs_http_from_otel
+    interval: 10s
+    rules:
+      - record: arcs:http_server_duration:p99_10m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (
+              rate(http_server_duration_milliseconds_bucket{job="otel-collector-app-metrics"}[10m])
+            )
+          )
+      - record: arcs:http_server_duration:p50_10m
+        expr: |
+          histogram_quantile(
+            0.50,
+            sum by (le) (
+              rate(http_server_duration_milliseconds_bucket{job="otel-collector-app-metrics"}[10m])
+            )
+          )
+
+  - name: arcs_policy
+    interval: 30s
+    rules:
+      - record: arcs:policy:decision_latency_p99_5m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (
+              rate(arcs_policy_decision_latency_seconds_bucket{job="arcs-policy-service"}[5m])
+            )
+          )
+      - record: arcs:policy:decisions_per_second
+        expr: |
+          sum(rate(arcs_policy_decisions_total{job="arcs-policy-service"}[5m]))
+      - record: arcs:policy:overrides_per_second
+        expr: |
+          sum(rate(arcs_safeguard_overrides_total{job="arcs-policy-service"}[5m]))

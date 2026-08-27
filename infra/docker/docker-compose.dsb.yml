@@ -1,0 +1,20 @@
+# DeathStarBench overlay — do not run this file alone.
+#
+# Docker Compose’s nested `include` can hit "conflicts with imported resource" when patching
+# many upstream services, so the supported way is a three-file merge (see Makefile `compose-up-dsb`).
+#
+# Equivalent command from the repository root:
+#   docker compose \
+#     -f infra/docker/docker-compose.yml \
+#     -f third_party/deathstarbench/socialNetwork/docker-compose.yml \
+#     -f infra/docker/docker-compose.dsb.override.yml \
+#     up -d
+#
+# This YAML stays minimal so `docker compose -f ... config` does not fail if someone tries it;
+# use `make compose-up-dsb` instead.
+name: arcs
+services:
+  _dsb_docs_placeholder:
+    image: busybox:1.36
+    profiles: ["dsb-docs-only"]
+    command: ["true"]

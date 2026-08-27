@@ -1,0 +1,152 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+.env
+.env.*
+!.env.example
+
+# Wheels (build locally)
+*.whl
+
+# Caches from tests, types, and linters (safe to delete)
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.dmypy.json
+dmypy.json
+.pytype/
+.ruff.toml.swp
+
+# Jupyter notebook auto-save folders
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Editor settings and OS junk files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Secrets & keys
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+.secrets/
+
+# Per-machine Python version / direnv (optional local only)
+.python-version
+.envrc
+
+# Log files and scratch folders
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+
+# Datasets, trained models, experiment logs (large binaries)
+data/
+datasets/
+models/
+checkpoints/
+wandb/
+mlruns/
+tensorboard_logs/
+runs/
+lightning_logs/
+
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.pb
+*.tflite
+*.h5
+*.hdf5
+*.parquet
+*.feather
+*.arrow
+*.npz
+*.npy
+# *.ipynb
+
+# JavaScript dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Java / Gradle build output
+target/
+.gradle/
+build/
+*.class
+*.jar
+!gradle-wrapper.jar
+
+# Go binaries and vendored deps
+bin/
+vendor/
+
+# Personal Docker overrides
+*.env.local
+docker-compose.override.yml
+
+# Packaged Helm charts (build locally)
+*.tgz
+charts/*.tgz
+
+# Auto-generated benchmark outputs and reports
+benchmarks/runs/
+benchmarks/results/
+benchmarks/reports/**/*.html
+benchmarks/reports/**/*.pdf
+*.prof
+
+# (optional)
+.cursor/
+.cursorignore
+.cursorrules
+.AppleDouble
+.LSOverride
+*.md
+*.txt

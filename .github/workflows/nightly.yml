@@ -1,0 +1,44 @@
+# Nightly checks: heavier than PR CI (builds images, starts the full Docker Compose testbed).
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  compose-smoke-testbed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build Docker images
+        run: |
+          docker compose -f infra/docker/docker-compose.yml build
+
+      - name: Start stack and wait for health
+        run: |
+          docker compose -f infra/docker/docker-compose.yml up -d
+          echo "Waiting for services..."
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:18001/health/live >/dev/null 2>&1 \
+              && curl -sf http://127.0.0.1:18003/aggregate >/dev/null 2>&1; then
+              echo "Smoke OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Smoke timeout"; docker compose -f infra/docker/docker-compose.yml ps
+          exit 1
+
+      - name: Integration pytest (reuse running stack)
+        run: |
+          python3 -m pip install -e ".[dev,train]"
+          python3 -m pytest tests/integration -m integration -v --no-cov
+        env:
+          ARCS_COMPOSE_ALREADY_UP: "1"
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f infra/docker/docker-compose.yml down -v

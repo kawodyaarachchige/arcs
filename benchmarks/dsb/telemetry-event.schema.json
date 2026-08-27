@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arcs.local/schemas/arcs.telemetry.v1.json",
+  "title": "ARCS Kafka telemetry envelope (version 1)",
+  "type": "object",
+  "required": ["schema"],
+  "properties": {
+    "schema": {
+      "const": "arcs.telemetry.v1",
+      "description": "Fixed string so consumers can ignore unknown message types safely."
+    },
+    "route": {
+      "type": "string",
+      "description": "Same route label you send as x-arcs-route (or '/' if you only have one path)."
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "How long one request took in milliseconds (optional but useful)."
+    },
+    "ok": {
+      "type": "boolean",
+      "description": "True if the attempt succeeded; false if it failed (drives error_rate in the state vector)."
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "arcs.fullname" . }}-toxiproxy-init
+  labels:
+    {{- include "arcs.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 12
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        {{- include "arcs.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: init
+          image: curlimages/curl:8.11.1
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              echo "Waiting for Toxiproxy API..."
+              curl --retry 120 --retry-delay 2 --retry-all-errors -sf \
+                "http://{{ include "arcs.fullname" . }}-toxiproxy:8474/version" >/dev/null
+              echo "Waiting for echo + cpu..."
+              until curl -sf "http://{{ include "arcs.fullname" . }}-echo:8080/health/live"; do sleep 3; done
+              until curl -sf "http://{{ include "arcs.fullname" . }}-cpu:8080/health/live"; do sleep 3; done
+              curl -sf -X DELETE "http://{{ include "arcs.fullname" . }}-toxiproxy:8474/proxies/echo" || true
+              curl -sf -X DELETE "http://{{ include "arcs.fullname" . }}-toxiproxy:8474/proxies/cpu" || true
+              curl -sf -X POST "http://{{ include "arcs.fullname" . }}-toxiproxy:8474/proxies" \
+                -H 'Content-Type: application/json' \
+                -d '{"name":"echo","listen":"0.0.0.0:8666","upstream":"{{ include "arcs.fullname" . }}-echo:8080"}'
+              curl -sf -X POST "http://{{ include "arcs.fullname" . }}-toxiproxy:8474/proxies" \
+                -H 'Content-Type: application/json' \
+                -d '{"name":"cpu","listen":"0.0.0.0:8667","upstream":"{{ include "arcs.fullname" . }}-cpu:8080"}'
+              echo "Toxiproxy proxies registered."

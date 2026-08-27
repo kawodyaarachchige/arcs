@@ -1,0 +1,146 @@
+# How many pods of each type to start. Turn echo + cpu up if you want dozens of fake services.
+# Example: echo=20, cpu=20, aggregator=2 → 42 app pods plus toxiproxy and the rest.
+
+global:
+  namespace: default
+
+# Optional empty string; set to pin a stable resource prefix.
+fullnameOverride: ""
+nameOverride: ""
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 250m
+    requests:
+      memory: 64Mi
+      cpu: 50m
+
+echo:
+  replicaCount: 10
+  image:
+    repository: arcs-echo-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 500m
+    requests:
+      memory: 128Mi
+      cpu: 100m
+
+cpu:
+  replicaCount: 10
+  image:
+    repository: arcs-cpu-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: "1"
+    requests:
+      memory: 128Mi
+      cpu: 100m
+
+policy:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: arcs-policy-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 512Mi
+      cpu: 500m
+    requests:
+      memory: 256Mi
+      cpu: 100m
+  # Optional Secret name containing tls.crt / tls.key for HTTPS/gRPC.
+  tlsSecretName: ""
+
+envoy:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: envoyproxy/envoy
+    tag: v1.31.2
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 500m
+    requests:
+      memory: 128Mi
+      cpu: 100m
+
+aggregator:
+  replicaCount: 2
+  image:
+    repository: arcs-aggregator-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  # Leave empty to use Toxiproxy in front of echo + cpu; or paste your own comma-separated URLs.
+  downstreamUrls: ""
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 500m
+    requests:
+      memory: 128Mi
+      cpu: 100m
+
+toxiproxy:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/shopify/toxiproxy
+    tag: "2.9.0"
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 128Mi
+      cpu: 200m
+
+# NetworkPolicy is off by default; turn on later if you need stricter pod-to-pod rules.
+networkPolicy:
+  enabled: false
+
+# Builds a 12-float observation vector from Prometheus (+ optional Kafka). Pair with observation_bridge in ARCS YAML.
+telemetryBridge:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: arcs-telemetry-bridge
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 500m
+    requests:
+      memory: 128Mi
+      cpu: 100m
+
+# Single-node KRaft broker, plaintext — dev/lab only. Enable TLS/SASL before any shared cluster.
+kafka:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: bitnami/kafka
+    tag: 3.7.2-debian-12-r3
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: "1"
+    requests:
+      memory: 512Mi
+      cpu: 250m

@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arcs.fullname" . }}-prometheus
+  labels:
+    {{- include "arcs.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+    rule_files:
+      - /etc/prometheus/recording_rules.yml
+    scrape_configs:
+      # Policy serves plain Prometheus text on /metrics (not OTLP); scrape it directly like compose does.
+      {{- if .Values.policy.enabled }}
+      - job_name: arcs-policy-service
+        static_configs:
+          - targets: ['{{ include "arcs.fullname" . }}-policy:8080']
+      {{- end }}
+      {{- if .Values.telemetryBridge.enabled }}
+      - job_name: arcs-telemetry-bridge
+        static_configs:
+          - targets: ['{{ include "arcs.fullname" . }}-telemetry-bridge:8085']
+      {{- end }}
+      - job_name: otel-collector-app-metrics
+        scrape_interval: 500ms
+        scrape_timeout: 450ms
+        static_configs:
+          - targets: ['{{ include "arcs.fullname" . }}-otel-collector:8889']
+      - job_name: prometheus
+        static_configs:
+          - targets: ['localhost:9090']
+  recording_rules.yml: |
+{{ .Files.Get "files/recording_rules.yml" | indent 4 }}

@@ -1,0 +1,242 @@
+name: arcs
+
+networks:
+  arcs:
+    driver: bridge
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks: [arcs]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    mem_limit: 256m
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ../otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+      - "13133:13133"
+    networks: [arcs]
+    mem_limit: 512m
+
+  policy-service:
+    build:
+      context: ../..
+      dockerfile: services/policy-service/Dockerfile
+    environment:
+      # Override on host: export ARCS_CONFIG=/config/benchmark-static.yaml (or benchmark-adaptive.yaml)
+      ARCS_CONFIG: ${ARCS_CONFIG:-/config/arcs.default.yaml}
+      LOG_LEVEL: INFO
+    volumes:
+      - ../../configs:/config:ro
+      # TorchScript + sidecar JSON (arcs-export) — host repo path ./data/models -> /models in container.
+      - ../../data/models:/models:ro
+    ports:
+      - "18080:8080"
+      - "15051:50051"
+    networks: [arcs]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 256m
+
+  # Turns Prometheus (and optional Kafka) into the same 12-number observation vector training uses.
+  telemetry-bridge:
+    build:
+      context: ../..
+      dockerfile: services/telemetry-bridge/Dockerfile
+    environment:
+      TELEMETRY_BRIDGE_ARCS_CONFIG: /config/arcs.default.yaml
+      PROMETHEUS_BASE_URL: http://prometheus:9090
+      LOG_LEVEL: INFO
+      # Set to kafka:9092 when you merge infra/docker/docker-compose.kafka.yml (see Makefile compose-up-kafka).
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-}
+      KAFKA_TOPIC_ARCS_TELEMETRY: arcs.telemetry.v1
+    volumes:
+      - ../../configs/arcs.default.yaml:/config/arcs.default.yaml:ro
+    ports:
+      - "18085:8085"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks: [arcs]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 256m
+
+  # Smart proxy: asks the policy service for retry/backoff/timeout headers, then forwards to echo.
+  envoy:
+    image: envoyproxy/envoy:v1.31.2
+    command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
+    volumes:
+      - ../envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "10000:10000"
+      - "9901:9901"
+    depends_on:
+      policy-service:
+        condition: service_healthy
+      echo-service:
+        condition: service_healthy
+    networks: [arcs]
+    mem_limit: 256m
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+      - policy-service
+    networks: [arcs]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 768m
+
+  # Dashboards: open http://localhost:3000 (admin/admin) and open the “ARCS Overview” board.
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_PORT: "3000"
+    volumes:
+      - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks: [arcs]
+    mem_limit: 512m
+
+  echo-service:
+    build:
+      context: ../..
+      dockerfile: services/echo-service/Dockerfile
+    environment:
+      OTEL_SERVICE_NAME: arcs-echo-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      MAX_REQUEST_DELAY_MS: "500"
+    ports:
+      - "18001:8080"
+    depends_on:
+      - otel-collector
+    networks: [arcs]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 256m
+
+  cpu-service:
+    build:
+      context: ../..
+      dockerfile: services/cpu-service/Dockerfile
+    environment:
+      OTEL_SERVICE_NAME: arcs-cpu-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - "18002:8080"
+    depends_on:
+      - otel-collector
+    networks: [arcs]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 256m
+
+  aggregator-service:
+    build:
+      context: ../..
+      dockerfile: services/aggregator-service/Dockerfile
+    environment:
+      OTEL_SERVICE_NAME: arcs-aggregator-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      # Call echo/cpu through Toxiproxy so we can add fake delays without editing Python.
+      DOWNSTREAM_URLS: "http://toxiproxy:8666/health/ready,http://toxiproxy:8667/health/ready"
+    ports:
+      - "18003:8080"
+    depends_on:
+      otel-collector:
+        condition: service_started
+      toxiproxy:
+        condition: service_started
+      toxiproxy-init:
+        condition: service_completed_successfully
+    networks: [arcs]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    mem_limit: 256m
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    ports:
+      - "8474:8474"
+      - "8666:8666"
+      - "8667:8667"
+    networks: [arcs]
+    mem_limit: 128m
+
+  # Runs once at startup: wires Toxiproxy so port 8666 → echo, 8667 → cpu (see benchmarks/scenarios).
+  toxiproxy-init:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      toxiproxy:
+        condition: service_started
+      echo-service:
+        condition: service_healthy
+      cpu-service:
+        condition: service_healthy
+    networks: [arcs]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        curl --retry 60 --retry-delay 1 --retry-all-errors -sf http://toxiproxy:8474/version >/dev/null
+        curl -sf -X DELETE http://toxiproxy:8474/proxies/echo || true
+        curl -sf -X DELETE http://toxiproxy:8474/proxies/cpu || true
+        curl -sf -X POST http://toxiproxy:8474/proxies -H 'Content-Type: application/json' \
+          -d '{"name":"echo","listen":"0.0.0.0:8666","upstream":"echo-service:8080"}'
+        curl -sf -X POST http://toxiproxy:8474/proxies -H 'Content-Type: application/json' \
+          -d '{"name":"cpu","listen":"0.0.0.0:8667","upstream":"cpu-service:8080"}'
+        echo "toxiproxy proxies configured"

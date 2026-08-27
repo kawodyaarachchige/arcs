@@ -1,0 +1,17 @@
+# Ships container logs to Elasticsearch. Policy JSON lines are plain stdout from the policy pod.
+# Drop or rename fields here if you ever log sensitive data (keep trace ids, not request bodies).
+
+filebeat.inputs:
+  - type: container
+    paths:
+      - "/var/lib/docker/containers/*/*.log"
+
+processors:
+  - add_docker_metadata: ~
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  allow_older_versions: true
+
+logging.level: info
+logging.to_stderr: true

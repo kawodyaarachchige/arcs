@@ -1,0 +1,188 @@
+# Static baseline for benchmark runs: YAML default retry/backoff/timeout (inference off).
+# Same shape as arcs.default.yaml; point ARCS_CONFIG here when comparing against adaptive.
+# Default settings for ARCS. Edit numbers here instead of hunting through code.
+# Tests check that every main section below is present. Design notes live in docs/adr/.
+
+version: 1
+
+determinism:
+  # Same seed → same random choices when you train or simulate (easier debugging).
+  seed: 42
+
+policy:
+  # Limits for the agent: how hard to retry, how long to wait, max time before giving up.
+  retry:
+    min: 0
+    max: 5
+    default: 2
+  backoff:
+    min_multiplier: 0.5
+    max_multiplier: 3.0
+    default_multiplier: 1.0
+  timeout_ms:
+    min: 100
+    max: 10000
+    default: 2000
+
+# How the agent picks retry / backoff / timeout. Changing DQN bin lists changes the neural net output size.
+action:
+  # Which space the training run uses by default (code can still override).
+  algorithm: dqn
+  dqn:
+    # Retry is every integer from policy.retry.min through policy.retry.max (inclusive).
+    # Backoff and timeout use explicit bins so can tune grid resolution in YAML.
+    backoff_multipliers: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+    timeout_ms_bins: [100, 250, 500, 1000, 2000, 5000, 10000]
+  ppo:
+    # When true, continuous low/high for backoff and timeout come from policy.backoff and policy.timeout_ms.
+    # First Box dimension is a 0–1 “retry fraction” mapped to an integer retry in [min, max].
+    use_policy_bounds: true
+
+# Twelve numbers the learner sees at each decision step (see arcs_rl.observation.features).
+observation:
+  # How far back we look for latency percentiles (seconds) — matches the spec’s “last 10 s”.
+  latency_window_s: 10
+  # How far back we look for error rate (seconds) — matches the spec’s “last 30 s”.
+  error_window_s: 30
+  # RPS at this level maps to 1.0 after scaling (tunable per deployment size).
+  reference_rps: 10000
+  # When we have no data: "neutral" fills with middle values; "pessimistic" assumes things look bad
+  # so we do not pretend the system is healthy (safer for operators).
+  missing_value_strategy: neutral
+  # Same order as the code constant FEATURE_NAMES — keeps training and serving aligned.
+  feature_order:
+    - cpu_util
+    - memory_util
+    - queue_depth
+    - latency_p50_ms
+    - latency_p99_ms
+    - error_rate
+    - retry_count
+    - backoff_multiplier
+    - timeout_ms
+    - global_rps
+    - reserved_0
+    - reserved_1
+  normalization:
+    # min_max: squash into [clip_min, clip_max] using the bounds below. z_score: (x-mean)/std then clip.
+    mode: min_max
+    clip_min: 0.0
+    clip_max: 1.0
+    # Raw latency in ms is divided by this before clipping (typical worst-case timeout scale).
+    latency_ms_upper: 10000
+    # queue_depth is divided by this before clipping (max meaningful queue length for the sim).
+    queue_depth_cap: 1000
+    # For z_score mode only (fixed numbers so runs stay reproducible).
+    z_score:
+      latency_ms_mean: 200.0
+      latency_ms_std: 150.0
+      error_rate_mean: 0.05
+      error_rate_std: 0.1
+      global_rps_mean: 1000.0
+      global_rps_std: 500.0
+
+reward:
+  # How the learner scores behavior: reward good success/latency, penalize retries and overload.
+  # cascade_penalty_scale: extra punishment when failures spread (retry storms).
+  # cascade_error_rate_threshold: if error_rate (0–1) is at or above this, we treat it as a “cascade” for the penalty.
+  cascade_error_rate_threshold: 0.35
+  weights:
+    success_rate: 0.4
+    latency: 0.3
+    retry_overhead: 0.2
+    overload_penalty: 0.1
+  cascade_penalty_scale: 10.0
+
+safeguards:
+  # Safety rails: even if the AI suggests something wild, these caps keep it in bounds.
+  max_retries: 5
+  backoff_multiplier_bounds: [0.5, 3.0]
+  timeout_ms_bounds: [100, 10000]
+  max_policy_changes_per_route_per_minute: 60
+  # Trip freeze when recent error rate is this high or worse (0–1 scale).
+  circuit_breaker_error_rate_threshold: 0.5
+  # After a freeze, wait until error rate is at or below this before trying new suggestions again.
+  # Must be strictly below circuit_breaker_error_rate_threshold so we do not flap on/off every request.
+  circuit_breaker_clear_error_rate_threshold: 0.35
+  # Forget per-route memory if the route goes idle this long (seconds). Keeps RAM bounded.
+  route_state_ttl_seconds: 3600
+
+prometheus:
+  # When true, training/replay code opens an HTTP /metrics port (separate from the Prometheus UI).
+  enabled: false
+  bind_address: "0.0.0.0"
+  # Use a port other than 9090 if you run Prometheus on the same machine (see simulation.compose_host_ports).
+  scrape_port: 9092
+  metrics_path: /metrics
+  metric_prefix: arcs_
+
+# Policy server: gRPC port and optional neural net for picking retry/backoff/timeout from the 12-D state.
+serving:
+  # Second listen port for gRPC (HTTP stays on simulation.compose_host_ports.policy_service mapping).
+  grpc_port: 50051
+  # When false, callers must send a suggested triple; same as older demos.
+  inference_enabled: false
+  # Path to TorchScript from arcs-export; sidecar JSON must sit next to it (same base name, .json).
+  torchscript_path: null
+  # If true and inference is on but the file is missing or bad, the process exits at startup.
+  fail_if_model_missing: true
+  # cpu is enough for small nets; use cuda only if you build images with GPU support.
+  device: cpu
+
+replay_buffer:
+  # Store past (state, action, result) pairs for training; keep at least this many rows.
+  path: ./data/replay_buffer
+  min_transitions: 100000
+  shard_format: numpy
+  # Each shard file holds this many transitions before start a new file.
+  transitions_per_shard: 5000
+  # Oldest shard files are removed when have more than this many on disk (rolling window).
+  max_shards: 500
+
+# Learning runs: rates, exploration, and where checkpoints go. Seed defaults to determinism.seed if omitted.
+training:
+  device: auto
+  checkpoint_dir: ./data/checkpoints
+  # If null, training code uses determinism.seed above.
+  seed: null
+  learning_rate: 0.0003
+  dqn:
+    # Fraction of total training time spent exploring (linearly decaying epsilon).
+    exploration_fraction: 0.1
+    exploration_initial_eps: 1.0
+    exploration_final_eps: 0.05
+    # In-memory replay size inside Stable-Baselines3 (separate from on-disk shards).
+    buffer_size: 100000
+  ppo:
+    n_steps: 2048
+    batch_size: 64
+  online:
+    total_timesteps: 100000
+  offline:
+    gradient_steps: 10000
+    batch_size: 256
+    # When filling the on-disk buffer from the simulator, stop after this many env steps if still short.
+    fill_rollout_max_steps: 500000
+
+simulation:
+  # One place to read the “practice lab” settings. Docker and Kubernetes can still override with environment variables.
+  # How often we *try* to push metrics (milliseconds). Real timing can jitter a bit — that’s normal.
+  telemetry_export_interval_ms: 500
+  prometheus_scrape_interval_ms: 500
+  # Echo service: longest on-purpose pause per request (milliseconds) when simulating slowness.
+  max_request_delay_ms: 500
+  # CPU service: never run more than this many hash loops in one request (protects shared machines).
+  max_cpu_iterations: 5000000
+  default_cpu_iterations: 200000
+  # Rough range of “how many fake services” this setup is meant to scale to (use replica counts in Docker/Kubernetes).
+  target_service_replica_range: [10, 50]
+  compose_host_ports:
+    echo: 18001
+    cpu: 18002
+    aggregator: 18003
+    policy_service: 18080
+    policy_grpc: 15051
+    envoy: 10000
+    toxiproxy_api: 8474
+    prometheus_ui: 9090
+    grafana: 3000

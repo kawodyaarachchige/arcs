@@ -1,0 +1,22 @@
+# Example only — your cluster needs Chaos Mesh installed first (see their quick start).
+# Fix namespace and pod labels so they match your real echo service, then: kubectl apply -f this-file.yaml
+# What it does: slows down network leaving selected pods so you can watch timeouts and retries in action.
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: arcs-echo-latency-stub
+  namespace: default
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app.kubernetes.io/name: arcs-echo-service
+  delay:
+    latency: 200ms
+    correlation: "0"
+    jitter: 20ms
+  duration: 5m

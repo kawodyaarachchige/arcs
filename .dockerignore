@@ -1,0 +1,49 @@
+# Git / IDE / local env
+.git
+.github
+.gitmodules
+.idea
+.vscode
+.DS_Store
+.env
+.env.*
+
+# Python caches / virtualenvs
+.venv
+venv
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.hypothesis
+.coverage
+htmlcov
+coverage.xml
+
+# Dev / non-runtime tree (not copied by service Dockerfiles)
+benchmarks
+dashboards
+data
+docs
+infra
+protos
+scripts
+tests
+**/tests
+**/*_test.py
+**/test_*.py
+
+# Lockfiles / editor noise not needed in image
+requirements-dev.lock
+.pre-commit-config.yaml
+Makefile
+
+# Large / generated artifacts if present
+**/*.pt
+**/*.onnx
+**/*.ckpt
+**/checkpoints
+**/wandb
+**/runs

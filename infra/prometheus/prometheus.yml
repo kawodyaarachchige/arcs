@@ -1,0 +1,32 @@
+# Tells Prometheus what to scrape (poll) for metrics.
+# We scrape the OpenTelemetry collector often (500ms) so graphs update quickly on this small practice stack.
+# On a huge real cluster we might use a slower interval to save work.
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - recording_rules.yml
+
+scrape_configs:
+  # Local Prometheus scrape for the policy service (native `/metrics`, not via OTLP).
+  - job_name: arcs-policy-service
+    static_configs:
+      - targets: ["policy-service:8080"]
+
+  - job_name: arcs-telemetry-bridge
+    static_configs:
+      - targets: ["telemetry-bridge:8085"]
+
+  # App metrics flow: app → OTLP → collector → this scrape target.
+  - job_name: otel-collector-app-metrics
+    scrape_interval: 500ms
+    scrape_timeout: 450ms
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # Prometheus also checks itself (version, “am I up?”).
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -1,0 +1,20 @@
+# Example only — needs Chaos Mesh. Keep duration short on shared school/lab machines so you don’t hog the CPU.
+# After editing selectors: kubectl apply -f this-file.yaml
+
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: arcs-cpu-stress-stub
+  namespace: default
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app.kubernetes.io/name: arcs-cpu-service
+  stressors:
+    cpu:
+      workers: 1
+      load: 80
+  duration: 2m

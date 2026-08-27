@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arcs.fullname" . }}-otel-config
+  labels:
+    {{- include "arcs.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+{{ .Files.Get "files/otel-collector-config.yaml" | indent 4 }}

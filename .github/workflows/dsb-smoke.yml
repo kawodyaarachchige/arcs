@@ -1,0 +1,25 @@
+# Optional manual check: validate compose merge and benchmark YAML without pulling every DeathStarBench image.
+name: dsb-smoke
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate benchmark YAML
+        run: |
+          pip install -q pyyaml
+          PYTHONPATH=. python -c "from pathlib import Path; from benchmarks.harness.bench_config import load_benchmark_config; load_benchmark_config(Path('benchmarks/config/dsb.yaml'))"
+      - name: Docker Compose config (merge)
+        run: |
+          docker compose -f infra/docker/docker-compose.yml \
+            -f third_party/deathstarbench/socialNetwork/docker-compose.yml \
+            -f infra/docker/docker-compose.dsb.override.yml config --quiet
